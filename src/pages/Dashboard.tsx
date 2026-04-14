@@ -11,7 +11,8 @@ import {
   LogOut,
   ChevronRight,
   Calendar,
-  User as UserIcon
+  User as UserIcon,
+  Home
 } from 'lucide-react';
 
 export const DashboardPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
@@ -214,6 +215,19 @@ export const DashboardPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         <div className="flex-1">
           {renderContent()}
+        </div>
+
+        <div className="pt-8 pb-4">
+          <button
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              onBack();
+            }}
+            className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            <Home className="w-4 h-4" />
+            Voltar ao início
+          </button>
         </div>
       </div>
 

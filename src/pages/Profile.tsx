@@ -12,7 +12,8 @@ import {
   Zap, 
   Heart,
   CheckCircle2,
-  Save
+  Save,
+  Home
 } from 'lucide-react';
 
 interface ChildProfile {
@@ -324,6 +325,19 @@ export const ProfilePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           
           <div className="mt-8 text-center">
             <p className="text-xs text-slate-300 font-medium">AutiCalma v1.1.0 • Personalização Ativa</p>
+          </div>
+
+          <div className="pt-8 pb-4">
+            <button
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                onBack();
+              }}
+              className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+              <Home className="w-4 h-4" />
+              Voltar ao início
+            </button>
           </div>
         </section>
       </div>

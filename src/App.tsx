@@ -25,7 +25,8 @@ import {
   LogOut,
   User,
   Pause,
-  Play
+  Play,
+  Home
 } from 'lucide-react';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -883,6 +884,11 @@ function MainApp() {
     }
   }, [currentScreen, isTimerRunning, elapsedTime, lastCrisisDuration, hasEndedCrisis]);
 
+  // Reset scroll on screen change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentScreen, selectedSituation, selectedEmergency]);
+
   // Protected and Redirect Route Logic
   useEffect(() => {
     if (loading) return;
@@ -1267,6 +1273,19 @@ function MainApp() {
                   );
                 })}
               </div>
+
+              <div className="pt-8 pb-4">
+                <button
+                  onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setCurrentScreen('home');
+                  }}
+                  className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <Home className="w-4 h-4" />
+                  Voltar ao início
+                </button>
+              </div>
             </div>
           </Layout>
         </motion.div>
@@ -1385,6 +1404,19 @@ function MainApp() {
                     className={`w-full py-5 rounded-2xl font-bold text-lg text-white shadow-lg transition-all active:scale-[0.98] ${selectedCategory ? APP_DATA[selectedCategory].actionBtnBgClass : 'bg-slate-800'}`}
                   >
                     Marcar como resolvido
+                  </button>
+                </div>
+
+                <div className="pt-8 pb-4">
+                  <button
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      setCurrentScreen('home');
+                    }}
+                    className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Home className="w-4 h-4" />
+                    Voltar ao início
                   </button>
                 </div>
               </div>
@@ -1573,6 +1605,21 @@ function MainApp() {
                   </button>
                 </motion.div>
               )}
+
+              {!hasEndedCrisis && (
+                <div className="pt-8 pb-4">
+                  <button
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      setCurrentScreen('home');
+                    }}
+                    className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Home className="w-4 h-4" />
+                    Voltar ao início
+                  </button>
+                </div>
+              )}
             </div>
           </Layout>
         </motion.div>
@@ -1619,6 +1666,19 @@ function MainApp() {
                   <p className="text-slate-400 font-medium text-sm">Nenhuma crise registrada.</p>
                 </div>
               )}
+
+              <div className="pt-8 pb-4">
+                <button
+                  onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setCurrentScreen('home');
+                  }}
+                  className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <Home className="w-4 h-4" />
+                  Voltar ao início
+                </button>
+              </div>
             </div>
           </Layout>
         </motion.div>
@@ -1736,9 +1796,36 @@ function MainApp() {
                   </div>
                 </div>
               )}
+
+              <div className="pt-8 pb-4">
+                <button
+                  onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setCurrentScreen('home');
+                  }}
+                  className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <Home className="w-4 h-4" />
+                  Voltar ao início
+                </button>
+              </div>
             </div>
           </Layout>
         </motion.div>
+      )}
+
+      {/* Floating Home Button */}
+      {currentScreen !== 'home' && currentScreen !== 'auth' && (
+        <button
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setCurrentScreen('home');
+          }}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center z-[1000] active:scale-95 transition-all"
+          aria-label="Voltar ao início"
+        >
+          <Home className="w-6 h-6" />
+        </button>
       )}
     </AnimatePresence>
   );
