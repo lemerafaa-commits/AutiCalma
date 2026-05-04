@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button, Input } from '../components/UI';
-import { Waves, Heart, Mail, Lock, User } from 'lucide-react';
+import { Waves, Heart, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 
-export const LoginPage: React.FC<{ onSwitch: () => void; onSuccess: () => void; initialMessage?: string }> = ({ onSwitch, onSuccess, initialMessage }) => {
+export const LoginPage: React.FC<{ onSwitch: () => void; onSuccess: () => void; onBack: () => void; initialMessage?: string }> = ({ onSwitch, onSuccess, onBack, initialMessage }) => {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,9 +27,17 @@ export const LoginPage: React.FC<{ onSwitch: () => void; onSuccess: () => void; 
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 max-w-md mx-auto">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 max-w-md mx-auto relative">
+      <button 
+        onClick={onBack}
+        className="absolute top-6 left-6 p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-orange-500 transition-colors shadow-sm active:scale-95 z-10"
+        title="Voltar"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+
       <div className="w-full space-y-8">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 pt-10">
           <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-emerald-400 flex items-center justify-center p-3 shadow-lg shadow-blue-100">
             <Waves className="w-full h-full text-white" />
           </div>
@@ -88,7 +96,7 @@ export const LoginPage: React.FC<{ onSwitch: () => void; onSuccess: () => void; 
   );
 };
 
-export const RegisterPage: React.FC<{ onSwitch: () => void; onSuccess: () => void }> = ({ onSwitch, onSuccess }) => {
+export const RegisterPage: React.FC<{ onSwitch: () => void; onSuccess: () => void; onBack: () => void }> = ({ onSwitch, onSuccess, onBack }) => {
   const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -123,9 +131,17 @@ export const RegisterPage: React.FC<{ onSwitch: () => void; onSuccess: () => voi
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 max-w-md mx-auto">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 max-w-md mx-auto relative">
+      <button 
+        onClick={onBack}
+        className="absolute top-6 left-6 p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-orange-500 transition-colors shadow-sm active:scale-95 z-10"
+        title="Voltar"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+
       <div className="w-full space-y-8">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 pt-10">
           <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-emerald-400 flex items-center justify-center p-3 shadow-lg shadow-blue-100">
             <Waves className="w-full h-full text-white" />
           </div>

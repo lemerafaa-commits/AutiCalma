@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { 
@@ -13,8 +14,11 @@ import {
   Heart,
   CheckCircle2,
   Save,
-  Home
+  Home,
+  Crown
 } from 'lucide-react';
+
+import { LockedOverlay } from '../components/LockedOverlay';
 
 interface ChildProfile {
   name: string;
@@ -44,10 +48,12 @@ const TRIGGER_OPTIONS = [
   'Outros'
 ];
 
-export const ProfilePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+export const ProfilePage: React.FC<{ onBack: () => void; userPlan?: 'free' | 'plus' | 'premium'; onUnlock?: () => void }> = ({ onBack, userPlan = 'free', onUnlock }) => {
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  const isPro = userPlan !== 'free';
   
   const [profile, setProfile] = useState<ChildProfile>({
     name: '',
@@ -115,26 +121,50 @@ export const ProfilePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </button>
           <h1 className="text-xl font-black text-slate-900 tracking-tight">Meu Perfil</h1>
         </div>
-        {user.role === 'user' && (
-          <button 
-            onClick={handleSave}
-            disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-              saveSuccess 
-                ? 'bg-green-500 text-white' 
-                : 'bg-orange-400 text-white hover:bg-orange-500 active:scale-95'
-            }`}
-          >
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : saveSuccess ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {saveSuccess ? 'Salvo!' : 'Salvar'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isPro && user.role === 'user' && (
+            <motion.button 
+              onClick={onUnlock}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              animate={{ 
+                scale: [1, 1.05, 1],
+              }}
+              transition={{ 
+                scale: {
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }
+              }}
+              className="p-2 bg-amber-100 border border-amber-200 text-amber-600 rounded-xl shadow-md shadow-amber-100/50 relative group"
+              title="Desbloquear versão completa"
+            >
+              <Crown className="w-5 h-5 fill-current" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full border-2 border-white" />
+            </motion.button>
+          )}
+          {user.role === 'user' && (
+            <button 
+              onClick={handleSave}
+              disabled={loading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                saveSuccess 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-orange-400 text-white hover:bg-orange-500 active:scale-95'
+              }`}
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : saveSuccess ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {saveSuccess ? 'Salvo!' : 'Salvar'}
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto pb-12">
@@ -161,9 +191,16 @@ export const ProfilePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </section>
 
         {user.role === 'user' && (
-          <>
-            {/* Child Profile Section */}
-            <section className="p-6 space-y-6">
+          <div className="relative">
+            {!isPro && onUnlock && (
+              <LockedOverlay 
+                onUnlock={onUnlock} 
+                message="Perfil da criança disponível no PLUS"
+              />
+            )}
+            <div className={!isPro ? 'opacity-20 pointer-events-none blur-[2px]' : ''}>
+              {/* Child Profile Section */}
+              <section className="p-6 space-y-6">
               <div className="flex items-center gap-2 mb-2">
                 <Baby className="w-5 h-5 text-orange-400" />
                 <h3 className="text-lg font-black text-slate-800">Dados da Criança</h3>
@@ -307,8 +344,9 @@ export const ProfilePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </button>
               </div>
             </section>
-          </>
-        )}
+          </div>
+        </div>
+      )}
 
         {/* Logout Section */}
         <section className="p-6 mt-4">

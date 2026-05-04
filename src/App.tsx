@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   AlertCircle, 
@@ -26,737 +26,47 @@ import {
   User,
   Pause,
   Play,
-  Home
+  Home,
+  Crown,
+  Star,
+  Activity,
+  Calendar,
+  TrendingUp,
+  BarChart3,
+  Trash2
 } from 'lucide-react';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage, RegisterPage } from './pages/Auth';
 import { DashboardPage } from './pages/Dashboard';
 import { ProfilePage } from './pages/Profile';
+import { PlansPage } from './pages/Plans';
+import { CheckoutPage } from './pages/Checkout';
+import { SuccessPage } from './pages/Success';
+import { LockedOverlay } from './components/LockedOverlay';
+import { Assistant } from './components/Assistant';
 
-// --- Types & Data ---
+/// --- Types & Data ---
+import { 
+  CategoryId, 
+  Situation, 
+  EmergencySituation, 
+  CrisisLog, 
+  CrisisHistoryEvent, 
+  CrisisLevel, 
+  Category 
+} from './types';
 
-type CategoryId = 'crise' | 'socializacao' | 'comunicacao';
-
-interface Situation {
-  id: string;
-  title: string;
-  explanation: string;
-  steps: string[];
-  toAvoid: string[];
-  keywords: string[];
-  reassurance?: string;
-  tip?: string;
-  categoria?: string;
-  titulo?: string;
-  situacao?: string;
-  o_que_fazer?: string[];
-  o_que_evitar?: string[];
-}
-
-interface EmergencySituation {
-  id: string;
-  title: string;
-  subtitle: string;
-  reassurance?: string;
-  steps: string[];
-  toAvoid: string[];
-  tip?: string;
-}
-
-interface CrisisLog {
-  id: string;
-  date: string;
-  type: string;
-  duration: number;
-  notes?: string;
-}
-
-interface Category {
-  id: CategoryId;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  bgClass: string;
-  headerTextClass: string;
-  heartBgClass: string;
-  heartIconClass: string;
-  itemHoverBorderClass: string;
-  itemHoverBgClass: string;
-  itemHoverTextClass: string;
-  itemHoverIconClass: string;
-  actionBtnBgClass: string;
-  actionBtnShadowClass: string;
-  situations: Situation[];
-}
-
-const EMERGENCY_DATA: EmergencySituation[] = [
-  {
-    id: 'sensorial',
-    title: 'Crise sensorial',
-    subtitle: '(barulho, luz, estímulos fortes)',
-    reassurance: 'O ambiente está sobrecarregado. Você pode ajudar.',
-    steps: [
-      'Leve a criança para um local silencioso',
-      'Reduza luzes fortes imediatamente',
-      'Permita que ela cubra os ouvidos',
-      'Fale baixo e de forma previsível'
-    ],
-    toAvoid: [
-      'Não grite ou fale alto',
-      'Não pressione para parar agora',
-      'Não force contato físico'
-    ],
-    tip: 'O silêncio é o melhor remédio para a sobrecarga sensorial.'
-  },
-  {
-    id: 'autoagressao',
-    title: 'Autoagressão',
-    subtitle: '(bater a cabeça ou se machucar)',
-    reassurance: 'A segurança física é a prioridade agora.',
-    steps: [
-      'Proteja a cabeça com almofadas ou suas mãos',
-      'Mantenha o ambiente em silêncio absoluto',
-      'Reduza estímulos visuais (apague as luzes)',
-      'Fique por perto sem conter bruscamente'
-    ],
-    toAvoid: [
-      'Não demonstre pânico ou medo',
-      'Não dê broncas ou grite',
-      'Não tente segurar com força excessiva'
-    ],
-    tip: 'Sua calma corporal ajuda a criança a se regular mais rápido.'
-  },
-  {
-    id: 'gritos',
-    title: 'Gritos ou choro intenso',
-    subtitle: '(descontrole emocional)',
-    reassurance: 'Isso vai passar. Respire fundo e mantenha a calma.',
-    steps: [
-      'Mantenha sua presença calma e silenciosa',
-      'Valide o sentimento: "Eu estou aqui com você"',
-      'Verifique se há dor ou necessidade física',
-      'Espere o pico da crise passar'
-    ],
-    toAvoid: [
-      'Não peça para parar de gritar',
-      'Não faça ameaças ou chantagens',
-      'Não tente conversar longamente agora'
-    ],
-    tip: 'Às vezes, apenas estar presente em silêncio é o suficiente.'
-  },
-  {
-    id: 'publico',
-    title: 'Crise em local público',
-    subtitle: '(julgamento de terceiros)',
-    reassurance: 'Ignore os outros. Foque apenas na sua criança.',
-    steps: [
-      'Procure um local reservado ou o carro',
-      'Ignore o olhar e o julgamento de estranhos',
-      'Fale baixo e calmo no ouvido da criança',
-      'Use fones de ouvido ou objetos de conforto'
-    ],
-    toAvoid: [
-      'Não tente "educar" na frente de estranhos',
-      'Não perca a calma com curiosos',
-      'Não force a permanência no local'
-    ],
-    tip: 'Sair do ambiente estressor é um ato de cuidado, não de derrota.'
-  }
-];
-
-const APP_DATA: Record<CategoryId, Category> = {
-  crise: {
-    id: 'crise',
-    title: 'Crise',
-    description: 'Quando a criança está em sobrecarga emocional ou sensorial',
-    icon: <AlertCircle className="w-6 h-6" />,
-    color: 'bg-white border-slate-100 border-l-orange-400',
-    bgClass: 'bg-slate-50',
-    headerTextClass: 'text-slate-900',
-    heartBgClass: 'bg-slate-100',
-    heartIconClass: 'text-slate-400',
-    itemHoverBorderClass: 'hover:border-orange-200',
-    itemHoverBgClass: 'hover:bg-orange-50/30',
-    itemHoverTextClass: 'group-hover:text-orange-900',
-    itemHoverIconClass: 'group-hover:text-orange-500',
-    actionBtnBgClass: 'bg-orange-500',
-    actionBtnShadowClass: 'shadow-orange-100',
-    situations: [
-      {
-        id: 'publico',
-        title: 'Crise em local público',
-        keywords: ['crise em público', 'supermercado', 'shopping', 'rua', 'gritando', 'chorando'],
-        explanation: 'A criança começa a gritar ou chorar em um ambiente cheio como supermercado ou shopping.',
-        reassurance: 'Isso é comum em locais com muitos estímulos. Você pode ajudar.',
-        steps: [
-          'Leve a criança para um local mais tranquilo',
-          'Fale com voz calma e baixa',
-          'Reduza estímulos visuais e sonoros',
-          'Dê tempo para a criança se regular'
-        ],
-        toAvoid: ['Não grite com a criança', 'Não force a parada imediata', 'Não chame atenção para a situação'],
-        tip: 'Mantenha-se entre a criança e a multidão para criar um escudo visual.'
-      },
-      {
-        id: 'gritando',
-        title: 'Criança gritando',
-        keywords: ['criança gritando', 'grito', 'berro', 'barulho', 'irritação'],
-        explanation: 'A criança emite gritos agudos e constantes, parecendo estar em sofrimento ou protesto.',
-        reassurance: 'O grito é uma forma de comunicação. Mantenha a calma.',
-        steps: [
-          'Mantenha-se calmo e em silêncio',
-          'Verifique estímulos incômodos (som, luz)',
-          'Use frases curtas e voz baixa',
-          'Ofereça um objeto de conforto'
-        ],
-        toAvoid: ['Não grite mais alto que a criança', 'Não tente conversar ou dar lições agora', 'Não puna a criança pelo barulho'],
-        tip: 'Sua calma é o espelho para a regulação dela. Respire fundo visivelmente.'
-      },
-      {
-        id: 'choro',
-        title: 'Criança chorando sem parar',
-        keywords: ['criança chorando sem parar', 'choro', 'lágrimas', 'inconsolável', 'tristeza'],
-        explanation: 'A criança chora de forma inconsolável por um longo período sem um motivo óbvio.',
-        reassurance: 'O choro ajuda a liberar a tensão. Esteja presente.',
-        steps: [
-          'Esteja presente fisicamente',
-          'Ofereça um abraço ou apenas fique perto',
-          'Reduza as luzes e o barulho',
-          'Espere o pico da emoção passar'
-        ],
-        toAvoid: ['Não peça para parar de chorar', 'Não demonstre desespero ou impaciência', 'Não use telas para distrair agora'],
-        tip: 'Às vezes, o choro é apenas uma descarga necessária. Apenas acompanhe.'
-      },
-      {
-        id: 'sensorial_crise',
-        title: 'Crise sensorial',
-        keywords: ['crise sensorial', 'luz', 'som', 'cheiro', 'toque', 'sensibilidade'],
-        explanation: 'A criança fica agitada ou entra em colapso devido a excesso de barulho, luzes ou texturas.',
-        reassurance: 'O ambiente está sobrecarregando os sentidos dela.',
-        steps: [
-          'Identifique e remova o estímulo incômodo',
-          'Ofereça abafadores ou óculos escuros',
-          'Leve-a para um local silencioso',
-          'Use pressão profunda (cobertor ou abraço)'
-        ],
-        toAvoid: ['Não force o enfrentamento do estímulo', 'Não ache que é teimosia', 'Não fale muito durante a crise'],
-        tip: 'Diminuir a iluminação costuma ter um efeito calmante imediato.'
-      },
-      {
-        id: 'autoagressao_crise',
-        title: 'Autoagressão (bater a cabeça)',
-        keywords: ['autoagressão', 'bater a cabeça', 'se morder', 'se bater', 'ferir'],
-        explanation: 'A criança começa a bater a cabeça na parede, no chão ou a se morder.',
-        reassurance: 'Priorize a segurança. Isso vai passar.',
-        steps: [
-          'Proteja com algo macio (almofada)',
-          'Mantenha a calma absoluta',
-          'Redirecione para pressão nas mãos',
-          'Garanta a segurança física imediata'
-        ],
-        toAvoid: ['Não segure com força excessiva', 'Não entre em pânico', 'Não dê broncas agora'],
-        tip: 'Sua prioridade é a segurança física. Use seu corpo apenas como escudo macio.'
-      },
-      {
-        id: 'rotina_crise',
-        title: 'Irritação com mudança de rotina',
-        keywords: ['criança se irrita com mudanças de rotina', 'rotina', 'mudança', 'surpresa', 'plano'],
-        explanation: 'A criança fica brava ou entra em crise porque um plano mudou ou o caminho foi diferente.',
-        reassurance: 'A previsibilidade traz segurança para ela.',
-        steps: [
-          'Use rotinas visuais claras',
-          'Avise com antecedência sobre mudanças',
-          'Valide o sentimento da criança',
-          'Ofereça previsibilidade no novo plano'
-        ],
-        toAvoid: ['Não mude as coisas de surpresa', 'Não minimize a importância da rotina', 'Não fique impaciente com a rigidez'],
-        tip: 'Tente encontrar um elemento da rotina antiga para levar para a nova situação.'
-      },
-      {
-        id: 'frustracao_ativ',
-        title: 'Frustração durante atividades',
-        keywords: ['frustração durante atividades', 'erro', 'falha', 'difícil', 'tarefa', 'desistir'],
-        explanation: 'A criança se irrita ou joga objetos quando não consegue realizar uma tarefa ou comete um erro.',
-        reassurance: 'Aprender algo novo pode ser desafiador.',
-        steps: [
-          'Divida a tarefa em passos pequenos',
-          'Ajude antes da explosão ocorrer',
-          'Elogie o esforço, não o resultado',
-          'Ensine a pedir ajuda com sinais'
-        ],
-        toAvoid: ['Não critique o erro', 'Não faça tudo pela criança', 'Não deixe que ela se sinta incapaz'],
-        tip: 'Se a frustração subir, faça uma pausa total e mude de assunto por 5 minutos.'
-      },
-      {
-        id: 'banho_crise',
-        title: 'Crise na hora do banho',
-        keywords: ['crise no banho', 'água', 'chuveiro', 'higiene', 'resistência'],
-        explanation: 'A criança chora, grita ou foge quando chega o momento de tomar banho.',
-        reassurance: 'O banho envolve muitas sensações táteis intensas.',
-        steps: [
-          'Verifique temperatura e pressão da água',
-          'Use brinquedos interessantes',
-          'Avise 5 minutos antes de começar',
-          'Tente usar bacia se o chuveiro assustar'
-        ],
-        toAvoid: ['Não arraste a criança à força', 'Não jogue água no rosto de surpresa', 'Não torne o banho uma batalha'],
-        tip: 'Deixe a criança controlar o chuveirinho se possível. O controle reduz o medo.'
-      },
-      {
-        id: 'seletividade_alimentar',
-        title: 'Seletividade alimentar',
-        keywords: ['criança não quer comer', 'comida', 'prato', 'mesa', 'recusar'],
-        explanation: 'A criança se recusa a comer, chora ao ver o prato ou aceita apenas poucos alimentos.',
-        reassurance: 'A alimentação é um processo gradual de descoberta.',
-        steps: [
-          'Apresente novos itens sem obrigar',
-          'Deixe-a explorar a textura com as mãos',
-          'Mantenha o ambiente calmo na mesa',
-          'Respeite as aversões sensoriais'
-        ],
-        toAvoid: ['Não force a comer tudo', 'Não faça chantagens ou ameaças', 'Não esconda alimentos novos'],
-        tip: 'A exposição visual repetida, sem pressão, é o primeiro passo para a aceitação.'
-      },
-      {
-        id: 'telas_crise',
-        title: 'Retirada de eletrônicos',
-        keywords: ['tirar o celular', 'tablet', 'tv', 'eletrônico', 'tempo'],
-        explanation: 'A criança entra em crise profunda quando o tempo de celular ou tablet acaba.',
-        reassurance: 'A transição entre o digital e o real é difícil.',
-        steps: [
-          'Use um cronômetro visual',
-          'Avise: "Faltam 5 minutos", "1 minuto"',
-          'Ofereça atividade prazerosa em seguida',
-          'Estabeleça regras claras antes do uso'
-        ],
-        toAvoid: ['Não tire o aparelho repentinamente', 'Não use telas como única calma', 'Não devolva o aparelho na crise'],
-        tip: 'O cérebro precisa de tempo para "desligar" do estímulo visual. O aviso é vital.'
-      }
-    ]
-  },
-  socializacao: {
-    id: 'socializacao',
-    title: 'Socialização',
-    description: 'Dificuldades de interação com outras pessoas',
-    icon: <Users className="w-6 h-6" />,
-    color: 'bg-white border-slate-100 border-l-violet-400',
-    bgClass: 'bg-slate-50',
-    headerTextClass: 'text-slate-900',
-    heartBgClass: 'bg-slate-100',
-    heartIconClass: 'text-slate-400',
-    itemHoverBorderClass: 'hover:border-violet-200',
-    itemHoverBgClass: 'hover:bg-violet-50/30',
-    itemHoverTextClass: 'group-hover:text-violet-900',
-    itemHoverIconClass: 'group-hover:text-violet-500',
-    actionBtnBgClass: 'bg-violet-500',
-    actionBtnShadowClass: 'shadow-violet-100',
-    situations: [
-      {
-        id: 'brincar_junto',
-        title: 'Dificuldade em brincar junto',
-        keywords: ['dificuldade para brincar com outras crianças', 'parque', 'escola', 'amigos'],
-        explanation: 'A criança se afasta ou ignora outras crianças que tentam interagir.',
-        reassurance: 'Interação social leva tempo. Respeite o ritmo dele.',
-        steps: [
-          'Permita o brincar paralelo (perto, mas não junto)',
-          'Proponha atividade de alto interesse',
-          'Elogie se ele apenas observar os outros',
-          'Mantenha a pressão social baixa'
-        ],
-        toAvoid: [
-          'Não empurre a criança para o grupo',
-          'Não force interações imediatas',
-          'Não rotule como antissocial'
-        ],
-        tip: 'Ficar perto sem interagir já é um grande passo social.'
-      },
-      {
-        id: 'brincar_sozinho',
-        title: 'Preferência por brincar só',
-        keywords: ['criança prefere brincar sozinha', 'isolamento', 'canto', 'brinquedo'],
-        explanation: 'A criança foca intensamente em um objeto e recusa companhia.',
-        reassurance: 'O brincar solitário pode ser uma forma de regulação.',
-        steps: [
-          'Respeite o tempo de isolamento',
-          'Aproxime-se aos poucos, sem invadir',
-          'Brinque com algo similar ao lado dele',
-          'Valorize o foco e a concentração'
-        ],
-        toAvoid: [
-          'Não tire o brinquedo para forçar contato',
-          'Não interrompa o hiperfoco bruscamente',
-          'Não force a partilha imediata'
-        ],
-        tip: 'Brincar ao lado com o mesmo tipo de objeto cria conexão sem pressão.'
-      },
-      {
-        id: 'evita_interacao',
-        title: 'Evita novas interações',
-        keywords: ['criança evita interação social', 'fugir', 'esconder', 'pessoas', 'visitas'],
-        explanation: 'A criança se esconde ou foge quando chegam visitas ou em locais cheios.',
-        reassurance: 'Novas pessoas podem ser imprevisíveis e assustadoras.',
-        steps: [
-          'Crie um espaço seguro para ele ficar',
-          'Peça às visitas para não forçarem contato',
-          'Deixe ele se aproximar no próprio tempo',
-          'Use fones se o barulho incomodar'
-        ],
-        toAvoid: [
-          'Não obrigue a beijar ou abraçar',
-          'Não peça desculpas pelo comportamento',
-          'Não force a permanência na multidão'
-        ],
-        tip: 'Permitir que ele observe de um local seguro aumenta a confiança.'
-      },
-      {
-        id: 'compartilhar_social',
-        title: 'Dificuldade em compartilhar',
-        keywords: ['compartilhar brinquedos', 'dividir', 'meu', 'posse', 'briga'],
-        explanation: 'A criança entra em conflito se alguém toca em seus objetos.',
-        reassurance: 'O conceito de posse traz segurança emocional.',
-        steps: [
-          'Use cronômetros para definir turnos',
-          'Ensine "minha vez, sua vez" com calma',
-          'Treine com objetos de baixo interesse',
-          'Garanta que o brinquedo voltará para ele'
-        ],
-        toAvoid: [
-          'Não tire o objeto da mão dele bruscamente',
-          'Não chame de egoísta',
-          'Não espere entendimento imediato'
-        ],
-        tip: 'Ter brinquedos que "não precisam ser divididos" reduz a ansiedade.'
-      },
-      {
-        id: 'olhar_olhos_social',
-        title: 'Evita contato visual',
-        keywords: ['criança não olha nos olhos', 'contato visual', 'olhar', 'encarar'],
-        explanation: 'A criança desvia o olhar durante conversas ou interações.',
-        reassurance: 'O contato visual pode ser sensorialmente doloroso.',
-        steps: [
-          'Aceite que o olhar pode ser desconfortável',
-          'Foque na interação, não no olho no olho',
-          'Sente-se ao lado para diminuir a pressão',
-          'Use brinquedos perto do seu rosto'
-        ],
-        toAvoid: [
-          'Não peça: "Olha para mim"',
-          'Não segure o rosto para forçar o olhar',
-          'Não ache que ele não está ouvindo'
-        ],
-        tip: 'Muitas crianças autistas ouvem melhor quando não estão olhando.'
-      },
-      {
-        id: 'regras_social',
-        title: 'Regras de brincadeiras',
-        keywords: ['regras de brincadeiras', 'jogo', 'perder', 'ganhar', 'vez'],
-        explanation: 'A criança não entende como jogar um jogo ou fica muito brava quando perde.',
-        reassurance: 'Regras sociais e jogos competitivos são complexos.',
-        steps: [
-          'Use jogos com regras simples e visuais',
-          'Explique a regra antes de começar',
-          'Treine o "perder" de forma leve em casa',
-          'Use o sistema de turnos visuais'
-        ],
-        toAvoid: [
-          'Não mude as regras no meio do jogo',
-          'Não ria se ela ficar frustrada ao perder',
-          'Não desista de jogar com ela'
-        ],
-        tip: 'Jogos cooperativos (todos ganham juntos) são ótimos para começar.'
-      },
-      {
-        id: 'festas_social',
-        title: 'Isolamento em festas',
-        keywords: ['isolamento em festas', 'aniversário', 'barulho', 'muita gente'],
-        explanation: 'Em festas de aniversário, a criança fica em um canto ou quer ir embora logo.',
-        reassurance: 'Festas são o auge da sobrecarga sensorial e social.',
-        steps: [
-          'Leve um "kit de sobrevivência" com favoritos',
-          'Combine um tempo curto de permanência',
-          'Procure um local mais calmo na festa',
-          'Respeite se ela quiser apenas observar'
-        ],
-        toAvoid: [
-          'Não force a criança a ir para a pista de dança',
-          'Não obrigue a cantar parabéns se o som assustar',
-          'Não compare com outras crianças'
-        ],
-        tip: 'Chegar mais cedo, quando está vazio, ajuda na aclimatação.'
-      },
-      {
-        id: 'esperar_social',
-        title: 'Dificuldade em esperar a vez',
-        keywords: ['esperar a vez', 'fila', 'turno', 'paciência', 'agora'],
-        explanation: 'A criança fica muito ansiosa ou grita quando precisa esperar em filas ou turnos.',
-        reassurance: 'O tempo de espera é abstrato e gera ansiedade.',
-        steps: [
-          'Use suportes visuais (ampulhetas ou relógios)',
-          'Ofereça uma distração leve enquanto espera',
-          'Elogie cada minuto de espera bem-sucedida',
-          'Explique o que vai acontecer após a espera'
-        ],
-        toAvoid: [
-          'Não diga apenas "espera" sem dar previsão',
-          'Não fique impaciente com a agitação',
-          'Não fure a fila sempre para evitar o treino'
-        ],
-        tip: 'Ter um "brinquedo de espera" exclusivo ajuda a criar uma associação positiva.'
-      },
-      {
-        id: 'cumprimentos_social',
-        title: 'Não responder a cumprimentos',
-        keywords: ['não responde a cumprimentos', 'oi', 'tchau', 'educação', 'mão'],
-        explanation: 'Alguém diz "oi" ou "tchau" e a criança não responde nem acena.',
-        reassurance: 'Responder a cumprimentos exige processamento rápido.',
-        steps: [
-          'Modele o comportamento acenando você mesmo',
-          'Ensine formas alternativas (joinha ou sorriso)',
-          'Não pressione por resposta imediata',
-          'Explique: "Ele está processando o seu oi"'
-        ],
-        toAvoid: [
-          'Não obrigue a criança a falar ou tocar na pessoa',
-          'Não chame de mal-educada',
-          'Não demonstre vergonha pela falta de resposta'
-        ],
-        tip: 'O aceno é um motor mais fácil de executar que a fala sob pressão.'
-      },
-      {
-        id: 'faz_de_conta_social',
-        title: 'Brincar de faz de conta',
-        keywords: ['brincar de faz de conta', 'imaginação', 'boneco', 'carrinho', 'fingir'],
-        explanation: 'A criança tem dificuldade em imaginar que um boneco está comendo ou que um bloco é um carro.',
-        reassurance: 'O pensamento abstrato se desenvolve de forma diferente.',
-        steps: [
-          'Demonstre a brincadeira de forma bem clara',
-          'Use objetos reais no início (comida de verdade)',
-          'Siga o interesse da criança na brincadeira',
-          'Use sons e expressões exageradas'
-        ],
-        toAvoid: [
-          'Não critique se ela usar o brinquedo de forma "errada"',
-          'Não force uma imaginação que ela ainda não tem',
-          'Não ache que ela não tem criatividade'
-        ],
-        tip: 'Brincar de "imitar a vida real" é a base para o faz-de-conta futuro.'
-      }
-    ]
-  },
-  comunicacao: {
-    id: 'comunicacao',
-    title: 'Comunicação',
-    description: 'Quando é difícil se entender ou dar instruções',
-    icon: <MessageCircle className="w-6 h-6" />,
-    color: 'bg-white border-slate-100 border-l-emerald-400',
-    bgClass: 'bg-slate-50',
-    headerTextClass: 'text-slate-900',
-    heartBgClass: 'bg-slate-100',
-    heartIconClass: 'text-slate-400',
-    itemHoverBorderClass: 'hover:border-emerald-200',
-    itemHoverBgClass: 'hover:bg-emerald-50/30',
-    itemHoverTextClass: 'group-hover:text-emerald-900',
-    itemHoverIconClass: 'group-hover:text-emerald-500',
-    actionBtnBgClass: 'bg-emerald-500',
-    actionBtnShadowClass: 'shadow-emerald-100',
-    situations: [
-      {
-        id: 'nao_responde',
-        title: 'Não responde ao chamado',
-        keywords: ['criança não responde quando chamada', 'nome', 'atenção', 'surda', 'foco'],
-        explanation: 'A criança parece não ouvir ou ignora quando chamada pelo nome.',
-        reassurance: 'O foco intenso pode dificultar a resposta. Aproxime-se.',
-        steps: [
-          'Aproxime-se e fique na altura dos olhos',
-          'Toque suavemente no ombro para chamar',
-          'Use frases curtas e objetivas',
-          'Espere alguns segundos para o processamento'
-        ],
-        toAvoid: [
-          'Não grite de longe',
-          'Não ache que é desobediência proposital',
-          'Não repita o nome sem se aproximar'
-        ],
-        tip: 'O contato físico leve ajuda a quebrar o hiperfoco e traz a atenção.'
-      },
-      {
-        id: 'ecolalia_com',
-        title: 'Repetição de falas (Ecolalia)',
-        keywords: ['ecolalia', 'repetir palavras', 'eco', 'fala', 'frase'],
-        explanation: 'A criança repete frases de desenhos ou o que você acabou de dizer.',
-        reassurance: 'A repetição é uma ferramenta de processamento da fala.',
-        steps: [
-          'Entenda que a repetição ajuda no processamento',
-          'Tente identificar a emoção por trás da fala',
-          'Responda ao que ele parece estar sentindo',
-          'Modele a frase correta naturalmente'
-        ],
-        toAvoid: [
-          'Não peça para parar de repetir',
-          'Não zombe da repetição',
-          'Não corrija a fala de forma rígida'
-        ],
-        tip: 'Validar a intenção comunicativa é mais importante que a forma da frase.'
-      },
-      {
-        id: 'nao_fala',
-        title: 'Dificuldade na fala verbal',
-        keywords: ['criança não consegue falar', 'atraso na fala', 'muda', 'expressão', 'comunicação'],
-        explanation: 'A criança tem dificuldade em articular palavras ou não usa a fala verbal.',
-        reassurance: 'Comunicação vai muito além das palavras faladas.',
-        steps: [
-          'Use cartões de comunicação visual (PECS)',
-          'Incentive gestos e o ato de apontar',
-          'Narre o que vocês estão fazendo juntos',
-          'Dê tempo para tentativas de sons'
-        ],
-        toAvoid: [
-          'Não pressione para falar "direito"',
-          'Não compare com outras crianças',
-          'Não finja que não entende os gestos'
-        ],
-        tip: 'Valorize qualquer tentativa de comunicação, seja um som ou um olhar.'
-      },
-      {
-        id: 'literal',
-        title: 'Entendimento literal',
-        keywords: ['entendimento literal', 'ironia', 'piada', 'metáfora', 'confusão'],
-        explanation: 'A criança não entende ironias, sarcasmo ou expressões figuradas.',
-        reassurance: 'O cérebro autista processa informações de forma direta.',
-        steps: [
-          'Seja literal nas instruções',
-          'Evite sarcasmo ou piadas de duplo sentido',
-          'Explique o significado real se usar metáforas',
-          'Use imagens para ilustrar conceitos abstratos'
-        ],
-        toAvoid: [
-          'Não fique bravo se ele não entender a piada',
-          'Não use frases figuradas no dia a dia',
-          'Não ache que ele está sendo difícil'
-        ],
-        tip: 'Instruções diretas reduzem a confusão e a ansiedade.'
-      },
-      {
-        id: 'pedidos',
-        title: 'Dificuldade em pedir',
-        keywords: ['dificuldade em pedir coisas', 'querer', 'água', 'comida', 'apontar'],
-        explanation: 'A criança chora ou fica brava porque quer algo, mas não sabe pedir.',
-        reassurance: 'A frustração de não ser compreendido é muito grande.',
-        steps: [
-          'Ofereça duas opções visuais para escolha',
-          'Ensine a apontar para o que deseja',
-          'Use sinais simples (como o de "comer")',
-          'Diga o nome do objeto ao entregá-lo'
-        ],
-        toAvoid: [
-          'Não tente adivinhar sem dar opções',
-          'Não ignore o choro sem tentar entender',
-          'Não dê tudo na mão sem tentativa de pedido'
-        ],
-        tip: 'Colocar objetos desejados à vista, mas fora de alcance, incentiva o pedido.'
-      },
-      {
-        id: 'instrucoes_com',
-        title: 'Dificuldade com instruções longas',
-        keywords: ['dificuldade com instruções', 'ordens', 'tarefa', 'esquecer', 'confusão'],
-        explanation: 'Se você pede "pegue o sapato e guarde no armário", ela só faz a primeira parte ou se perde.',
-        reassurance: 'Processar múltiplas ordens exige muito da memória de trabalho.',
-        steps: [
-          'Dê uma instrução de cada vez',
-          'Espere ela terminar antes de pedir outra',
-          'Use apoio visual com fotos das tarefas',
-          'Elogie cada pequeno passo concluído'
-        ],
-        toAvoid: [
-          'Não dê várias ordens seguidas rapidamente',
-          'Não grite se ela esquecer o pedido',
-          'Não ache que ela está ignorando você'
-        ],
-        tip: 'O contato visual ou um toque leve antes da instrução garante que ela ouviu.'
-      },
-      {
-        id: 'contato_visual_com',
-        title: 'Evitar contato visual ao falar',
-        keywords: ['evitar contato visual', 'olhar', 'conversa', 'rosto', 'fala'],
-        explanation: 'A criança fala com você mas olha para o chão ou para o lado.',
-        reassurance: 'Olhar e falar ao mesmo tempo pode ser exaustivo.',
-        steps: [
-          'Não exija que ela olhe nos olhos para falar',
-          'Foque no que ela diz, não para onde olha',
-          'Fique ao lado dela para uma conversa relaxada',
-          'Valorize a tentativa de comunicação verbal'
-        ],
-        toAvoid: [
-          'Não interrompa a fala para pedir o olhar',
-          'Não segure o queixo dela para forçar o olhar',
-          'Não ache que a falta de olhar significa mentira'
-        ],
-        tip: 'Muitas crianças se sentem mais seguras conversando enquanto fazem outra atividade.'
-      },
-      {
-        id: 'assunto_unico',
-        title: 'Falar apenas de um assunto',
-        keywords: ['falar apenas de um assunto', 'hiperfoco', 'repetitivo', 'interesse', 'monotema'],
-        explanation: 'A criança só quer falar sobre dinossauros ou trens, o tempo todo.',
-        reassurance: 'O hiperfoco é uma fonte de prazer e segurança.',
-        steps: [
-          'Use o interesse dela para ensinar coisas novas',
-          'Estabeleça momentos para falar do tema',
-          'Mostre interesse genuíno no que ela sabe',
-          'Tente fazer pontes suaves para outros assuntos'
-        ],
-        toAvoid: [
-          'Não diga que o assunto é chato',
-          'Não proíba a criança de falar sobre o tema',
-          'Não ignore a fala dela sobre o interesse'
-        ],
-        tip: 'O hiperfoco é a melhor porta de entrada para novos aprendizados.'
-      },
-      {
-        id: 'volume_voz',
-        title: 'Dificuldade em controlar o volume',
-        keywords: ['volume da voz', 'gritar', 'falar baixo', 'tom', 'barulho'],
-        explanation: 'A criança fala muito alto em locais silenciosos ou muito baixo quando precisa ser ouvida.',
-        reassurance: 'A percepção do próprio volume de voz pode estar alterada.',
-        steps: [
-          'Use sinais visuais para "alto" e "baixo"',
-          'Modele o volume de voz que você deseja',
-          'Brinque de "falar como leão" e "como gatinho"',
-          'Explique sobre os volumes de cada ambiente'
-        ],
-        toAvoid: [
-          'Não grite "fala baixo!" (você estará gritando)',
-          'Não sinta vergonha se ela falar alto em público',
-          'Não puna por um descontrole sensorial'
-        ],
-        tip: 'Um termômetro visual de volume ajuda a criança a entender o conceito abstrato.'
-      },
-      {
-        id: 'sentimentos_com',
-        title: 'Dificuldade em expressar sentimentos',
-        keywords: ['expressar sentimentos', 'dor', 'tristeza', 'raiva', 'emoção'],
-        explanation: 'A criança não consegue dizer se está com dor, triste ou brava, apenas demonstra agitação.',
-        reassurance: 'Identificar emoções internas é um desafio complexo.',
-        steps: [
-          'Use um "termômetro das emoções" com desenhos',
-          'Ajude-a a nomear o que parece estar sentindo',
-          'Valide a emoção: "Parece que você está bravo"',
-          'Use cores para representar sentimentos'
-        ],
-        toAvoid: [
-          'Não diga "não foi nada" ou "pare com isso"',
-          'Não ignore os sinais físicos de desconforto',
-          'Não pressione por resposta verbal complexa'
-        ],
-        tip: 'Associar emoções a sensações físicas (ex: "coração batendo rápido") ajuda na identificação.'
-      }
-    ]
-  }
-};
+import { 
+  CRISIS_LEVEL_MAP, 
+  EMERGENCY_DATA, 
+  APP_DATA 
+} from './constants';
 
 // --- Components ---
+import { useCrisisManager } from './hooks/useCrisisManager';
+
+import { formatTime, getCrisisMessage } from './lib/utils';
 
 const Layout = ({ 
   children, 
@@ -824,6 +134,14 @@ const Layout = ({
   </div>
 );
 
+const CRISIS_CLASSIFICATION_OPTIONS = [
+  "Crise sensorial",
+  "Autoagressão",
+  "Gritos ou choro intenso",
+  "Crise em local público",
+  "Outro / Não especificado"
+];
+
 export default function App() {
   return (
     <AuthProvider>
@@ -832,50 +150,114 @@ export default function App() {
   );
 }
 
+// MODO TESTE ATIVO
+// Todos os usuários estão com plano premium liberado
+// REMOVER isso antes de produção real
+const isTestMode = true;
+
 function MainApp() {
   const { user, loading, logout } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'list' | 'detail' | 'emergency' | 'emergencyDetail' | 'diary' | 'dashboard' | 'auth' | 'profile'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'list' | 'detail' | 'emergency' | 'emergencyDetail' | 'diary' | 'dashboard' | 'auth' | 'profile' | 'plans' | 'checkout' | 'success'>('home');
+  const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<'plus' | 'premium' | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authMessage, setAuthMessage] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CategoryId | null>(null);
   const [selectedSituation, setSelectedSituation] = useState<Situation | null>(null);
   const [selectedEmergency, setSelectedEmergency] = useState<EmergencySituation | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Timer State
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [lastCrisisDuration, setLastCrisisDuration] = useState<number | null>(null);
-  const [hasEndedCrisis, setHasEndedCrisis] = useState(false);
+  const [finalCrisisType, setFinalCrisisType] = useState<string | null>(null);
+  const [crisisObservation, setCrisisObservation] = useState('');
+  const [crisisOrigin, setCrisisOrigin] = useState<'crisis' | 'info' | null>(null);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
 
-  // Diary State
-  const [logs, setLogs] = useState<CrisisLog[]>(() => {
-    const saved = localStorage.getItem('auticalma_logs');
-    return saved ? JSON.parse(saved) : [];
+  const {
+    elapsedTime,
+    isTimerRunning,
+    setIsTimerRunning,
+    crisisLevel,
+    setCrisisLevel,
+    initialCrisisLevel,
+    setInitialCrisisLevel,
+    hospitalClicked,
+    setHospitalClicked,
+    feedbackAjudou,
+    setFeedbackAjudou,
+    hasEndedCrisis,
+    lastCrisisDuration,
+    crisisHistory,
+    endCrisis,
+    registrarEventoCrise,
+    sairDaCrise,
+    iniciarCrise,
+    resetCrisisState,
+    clearHistory
+  } = useCrisisManager(user?.uid, setCurrentScreen);
+  const [userPlan, setUserPlan] = useState<'free' | 'plus' | 'premium'>(() => {
+    if (isTestMode) return 'premium';
+    const saved = localStorage.getItem('auticalma_userPlan');
+    if (saved === 'plus' || saved === 'premium') return saved;
+    return 'free';
   });
 
-  const getCrisisMessage = (seconds: number) => {
-    if (seconds < 30) return "Respire. Você está aqui, isso já ajuda.";
-    if (seconds < 60) return "Fique perto. Sua presença já acalma.";
-    if (seconds < 120) return "Reduza estímulos. Menos luz, menos som.";
-    if (seconds < 180) return "Evite falar muito. O silêncio ajuda a regular.";
-    if (seconds < 300) return "A crise vai passar. Continue presente.";
-    return "Você está fazendo o melhor possível. Continue.";
+  const isPro = userPlan !== 'free';
+
+  const finalizarCrise = useCallback(() => {
+    endCrisis();
+    setCurrentScreen('emergency');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [endCrisis, setCurrentScreen]);
+
+  const concluirRegistroEVoltar = useCallback(() => {
+    const tipo = finalCrisisType || 'Não especificado';
+    registrarEventoCrise(tipo, crisisObservation);
+
+    sairDaCrise();
+    setSelectedCategory(null);
+    setSelectedSituation(null);
+    setSelectedEmergency(null);
+    setSearchTerm('');
+    setFinalCrisisType(null);
+    setCrisisObservation('');
+    setCrisisOrigin(null);
+  }, [registrarEventoCrise, lastCrisisDuration, sairDaCrise, finalCrisisType, crisisObservation, setSelectedCategory, setSelectedSituation, setSelectedEmergency, setSearchTerm]);
+
+  const voltarAoInicio = useCallback(() => {
+    // Apenas navega para home e reseta estados de navegação, Sem parar timer ou mostrar resumo
+    setFeedbackAjudou(null);
+    setSelectedCategory(null);
+    setSelectedSituation(null);
+    setSelectedEmergency(null);
+    setSearchTerm('');
+    setCurrentScreen('home');
+    setCrisisOrigin(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [setCurrentScreen, setFeedbackAjudou]);
+
+  const goHomeSafe = useCallback(() => {
+    // Repurposed to just voltarAoInicio as requested (Nav buttons shouldn't trigger summary)
+    voltarAoInicio();
+  }, [voltarAoInicio]);
+
+  const iniciarCriseEmergencia = () => {
+    resetCrisisState(); // Start fresh
+    iniciarCrise('emergencia');
+    setCurrentScreen('emergency');
+    setCrisisOrigin('crisis');
+  };
+
+  const goBack = () => {
+    if (currentScreen === 'detail') setCurrentScreen('list');
+    else if (currentScreen === 'list') voltarAoInicio();
+    else if (currentScreen === 'emergency') voltarAoInicio();
+    else if (currentScreen === 'emergencyDetail') setCurrentScreen('emergency');
+    else if (currentScreen === 'diary') voltarAoInicio();
+    else if (currentScreen === 'profile') voltarAoInicio();
+    else if (currentScreen === 'plans') voltarAoInicio();
   };
 
   useEffect(() => {
-    localStorage.setItem('auticalma_logs', JSON.stringify(logs));
-  }, [logs]);
-
-  useEffect(() => {
-    let interval: any;
-    if (isTimerRunning) {
-      interval = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
+    localStorage.setItem('auticalma_userPlan', userPlan);
+  }, [userPlan]);
 
   // Auto-start timer when entering emergency screen
   useEffect(() => {
@@ -888,6 +270,11 @@ function MainApp() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentScreen, selectedSituation, selectedEmergency]);
+
+  // Reset feedback when switching content
+  useEffect(() => {
+    setFeedbackAjudou(null);
+  }, [selectedSituation, selectedEmergency, setFeedbackAjudou]);
 
   // Protected and Redirect Route Logic
   useEffect(() => {
@@ -921,11 +308,53 @@ function MainApp() {
   }
 
   if (currentScreen === 'dashboard' && user) {
-    return <DashboardPage onBack={() => setCurrentScreen('home')} />;
+    return <DashboardPage onBack={goHomeSafe} />;
   }
 
   if (currentScreen === 'profile' && user) {
-    return <ProfilePage onBack={() => setCurrentScreen('home')} />;
+    return <ProfilePage onBack={goHomeSafe} userPlan={userPlan} onUnlock={() => setCurrentScreen('plans')} />;
+  }
+
+  if (currentScreen === 'plans') {
+    return (
+      <PlansPage 
+        onBack={goHomeSafe} 
+        onContinueFree={goHomeSafe}
+        userPlan={userPlan}
+        onUpgrade={(plan) => {
+          setUserPlan(plan);
+        }}
+        onSelectPlan={(plan) => {
+          setSelectedPlanForCheckout(plan);
+          setCurrentScreen('checkout');
+        }}
+      />
+    );
+  }
+
+  if (currentScreen === 'checkout' && selectedPlanForCheckout) {
+    return (
+      <CheckoutPage 
+        plan={selectedPlanForCheckout}
+        onBack={() => setCurrentScreen('plans')}
+        onConfirm={(method) => {
+          setUserPlan(selectedPlanForCheckout);
+          setCurrentScreen('success');
+        }}
+      />
+    );
+  }
+
+  if (currentScreen === 'success' && selectedPlanForCheckout) {
+    return (
+      <SuccessPage 
+        plan={selectedPlanForCheckout}
+        onFinish={() => {
+          goHomeSafe();
+          setSelectedPlanForCheckout(null);
+        }}
+      />
+    );
   }
 
   if (currentScreen === 'auth' && !user) {
@@ -938,6 +367,7 @@ function MainApp() {
         onSuccess={() => {
           // Redirection is handled by the useEffect above
         }} 
+        onBack={voltarAoInicio}
         initialMessage={authMessage}
       />
     ) : (
@@ -951,39 +381,10 @@ function MainApp() {
           setAuthMode('login');
           setCurrentScreen('auth');
         }} 
+        onBack={voltarAoInicio}
       />
     );
   }
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const pauseTimer = () => setIsTimerRunning(false);
-  const resumeTimer = () => setIsTimerRunning(true);
-  
-  const endCrisis = () => {
-    setLastCrisisDuration(elapsedTime);
-    setIsTimerRunning(false);
-    setElapsedTime(0);
-    setHasEndedCrisis(true);
-  };
-
-  const saveLog = (type: string = 'Não especificado') => {
-    if (lastCrisisDuration === null) return;
-    
-    const newLog: CrisisLog = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleString('pt-BR'),
-      type,
-      duration: lastCrisisDuration
-    };
-    
-    setLogs([newLog, ...logs]);
-    setLastCrisisDuration(null);
-  };
 
   const allSituations = (Object.keys(APP_DATA) as CategoryId[]).flatMap(catId => 
     APP_DATA[catId].situations.map(sit => ({ ...sit, categoryId: catId }))
@@ -1001,53 +402,85 @@ function MainApp() {
     setSelectedCategory(catId);
     setCurrentScreen('list');
     setSearchTerm('');
+    setCrisisOrigin('info');
   };
 
   const handleSituationSelect = (situation: Situation, catId?: CategoryId) => {
     const categoryId = catId || selectedCategory;
+    
+    // Only start timer logic IF we are already in crisis flow (e.g. from Emergency button)
+    if (crisisOrigin === 'crisis') {
+      iniciarCrise(situation.id, categoryId || undefined);
+    } else {
+      setCrisisOrigin('info');
+    }
+    
     if (categoryId) setSelectedCategory(categoryId);
     setSelectedSituation(situation);
+    
     setCurrentScreen('detail');
     setSearchTerm('');
   };
 
-  const goBack = () => {
-    if (currentScreen === 'detail') setCurrentScreen('list');
-    else if (currentScreen === 'list') setCurrentScreen('home');
-    else if (currentScreen === 'emergency') setCurrentScreen('home');
-    else if (currentScreen === 'emergencyDetail') setCurrentScreen('emergency');
-    else if (currentScreen === 'diary') setCurrentScreen('home');
-    else if (currentScreen === 'profile') setCurrentScreen('home');
-  };
-
-  const reset = () => {
-    setCurrentScreen('home');
-    setSelectedCategory(null);
-    setSelectedSituation(null);
-    setSelectedEmergency(null);
-  };
+  const currentCrisisType = selectedSituation?.title || selectedEmergency?.title || (currentScreen === 'emergency' ? 'Emergência' : 'Desconhecido');
 
   return (
-    <AnimatePresence mode="wait">
-      {currentScreen === 'home' && (
-        <motion.div
-          key="home"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Layout>
+    <div className="relative">
+      <AnimatePresence mode="wait">
+        {currentScreen === 'home' && (
+          <motion.div
+            key="home"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Layout>
             <div className="flex items-center justify-between mb-8">
               <div className="space-y-1">
                 <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
                   Olá, {user ? user.name.split(' ')[0] : 'Pai/Mãe'}
                 </h2>
-                <p className="text-slate-500 text-lg font-medium">
-                  Como posso ajudar hoje?
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-slate-500 text-lg font-medium">
+                    Como posso ajudar hoje?
+                  </p>
+                  {userPlan !== 'free' && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      userPlan === 'premium' ? 'bg-indigo-100 text-indigo-600' : 'bg-orange-100 text-orange-600'
+                    }`}>
+                      {userPlan}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
+                <motion.button 
+                  onClick={() => setCurrentScreen('plans')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  animate={{ 
+                    scale: [1, 1.05, 1],
+                  }}
+                  transition={{ 
+                    scale: {
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }
+                  }}
+                  className="p-3 bg-amber-100 border border-amber-200 rounded-2xl text-amber-600 shadow-lg shadow-amber-100/50 relative group transition-colors hover:bg-amber-200"
+                  title="Desbloquear versão completa"
+                >
+                  <Crown className="w-5 h-5 fill-current" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+                  
+                  {/* Tooltip hint for desktop */}
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-xl">
+                    Desbloquear versão completa
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                  </div>
+                </motion.button>
                 {user ? (
                   <>
                     {user.role === 'admin' && (
@@ -1069,7 +502,8 @@ function MainApp() {
                     <button 
                       onClick={() => {
                         logout();
-                        setCurrentScreen('home');
+                        resetCrisisState();
+                        setCurrentScreen('auth');
                       }}
                       className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-rose-500 transition-colors shadow-sm"
                       title="Sair"
@@ -1111,25 +545,42 @@ function MainApp() {
             </div>
 
             <button
-              onClick={() => {
-                setElapsedTime(0);
-                setLastCrisisDuration(null);
-                setIsTimerRunning(false);
-                setHasEndedCrisis(false);
-                setCurrentScreen('emergency');
-              }}
-              className="w-full mb-6 p-6 bg-orange-400 hover:bg-orange-500 text-white rounded-2xl shadow-md shadow-orange-50 flex items-center justify-center gap-4 transition-all active:scale-[0.98] group"
+              onClick={iniciarCriseEmergencia}
+              className="w-full mb-3 p-6 bg-orange-400 hover:bg-orange-500 text-white rounded-2xl shadow-md shadow-orange-50 flex items-center justify-center gap-4 transition-all active:scale-[0.98] group"
             >
               <Zap className="w-6 h-6 fill-current" />
               <span className="text-xl font-bold">Meu filho está em crise agora</span>
             </button>
 
+            {/* Social Proof Home */}
+            <div className="flex items-center justify-center gap-2 mb-6 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-current" />
+              <p className="text-[11px] font-bold text-slate-500 tracking-tight">
+                Mais de 100 famílias confiam no AutiCalma hoje
+              </p>
+            </div>
+
             <button
-              onClick={() => setCurrentScreen('diary')}
-              className="w-full mb-14 p-4 text-slate-400 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] hover:text-slate-500"
+              onClick={() => {
+                // MVP TEST MODE
+                // Histórico liberado sem login para validação
+                // Reativar bloqueio por login antes da versão final
+                setCurrentScreen('diary');
+              }}
+              className="w-full mb-10 p-6 bg-white border border-slate-100 rounded-[28px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] group text-left flex items-center justify-between"
             >
-              <Clock className="w-4 h-4" />
-              <span className="text-sm font-bold">Ver histórico de crises</span>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-orange-500 transition-colors">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 leading-none mb-1">Ver histórico de crises</h3>
+                  <p className="text-xs font-medium text-slate-400">Acompanhe padrões e evolução</p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-orange-50 transition-colors">
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-orange-500 transition-colors" />
+              </div>
             </button>
 
             <AnimatePresence>
@@ -1145,9 +596,9 @@ function MainApp() {
                   </h3>
                   {filteredResults.length > 0 ? (
                     <div className="grid gap-2">
-                      {filteredResults.map((result) => (
+                      {filteredResults.map((result, idx) => (
                         <button
-                          key={result.id}
+                          key={`${result.id}-${idx}`}
                           onClick={() => handleSituationSelect(result, result.categoryId)}
                           className="w-full text-left p-4 bg-white rounded-xl border border-stone-100 shadow-sm hover:border-amber-200 transition-all flex items-center justify-between group"
                         >
@@ -1174,14 +625,14 @@ function MainApp() {
             </AnimatePresence>
 
             <div className="grid gap-4">
-              {(Object.keys(APP_DATA) as CategoryId[]).map((key) => {
+              {(Object.keys(APP_DATA) as CategoryId[]).map((key, idx) => {
                 const cat = APP_DATA[key];
                 const accentColor = key === 'crise' ? 'text-orange-500' : key === 'socializacao' ? 'text-violet-500' : 'text-emerald-500';
                 const accentBg = key === 'crise' ? 'bg-orange-50' : key === 'socializacao' ? 'bg-violet-50' : 'bg-emerald-50';
                 
                 return (
                   <button
-                    key={cat.id}
+                    key={`${cat.id}-${idx}`}
                     onClick={() => handleCategorySelect(cat.id)}
                     className={`w-full text-left p-6 rounded-2xl border-l-4 transition-all active:scale-[0.98] flex items-center gap-5 ${cat.color} shadow-sm hover:shadow-md`}
                   >
@@ -1199,6 +650,32 @@ function MainApp() {
                 );
               })}
             </div>
+
+            {/* Upgrade Banner - Moved to bottom and refined */}
+            {userPlan !== 'premium' && (
+              <button
+                onClick={() => setCurrentScreen('plans')}
+                className="w-full mt-10 p-4 bg-gradient-to-br from-slate-50 to-white border border-slate-100 rounded-2xl text-left relative overflow-hidden group active:scale-[0.98] transition-all shadow-sm hover:shadow-md"
+              >
+                <div className="relative z-10 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-orange-100/50 flex items-center justify-center shrink-0">
+                    <Crown className="w-6 h-6 text-orange-500 fill-orange-500/20" />
+                  </div>
+                  <div className="flex-1 space-y-0.5">
+                    <h3 className="text-slate-900 font-black text-sm tracking-tight">
+                      Desbloqueie a IA personalizada
+                    </h3>
+                    <p className="text-slate-500 text-[11px] font-medium leading-tight">
+                      Receba sugestões adaptadas ao seu filho
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-orange-500 text-white font-bold text-[11px] px-4 py-2 rounded-xl shadow-sm shadow-orange-200 group-hover:bg-orange-600 transition-colors">
+                    <span>Ver planos</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </div>
+                </div>
+              </button>
+            )}
 
             <div className="mt-12 p-6 text-center">
               <p className="text-xs text-slate-400 leading-relaxed italic">
@@ -1231,13 +708,13 @@ function MainApp() {
                 <p className="text-slate-400 text-xs font-medium">Selecione a opção que melhor descreve o momento</p>
               </div>
               <div className="grid gap-4">
-                {APP_DATA[selectedCategory].situations.map((sit) => {
+                {APP_DATA[selectedCategory].situations.map((sit, idx) => {
                   const isSelected = selectedSituation?.id === sit.id;
                   const category = APP_DATA[selectedCategory];
                   
                   return (
                     <button
-                      key={sit.id}
+                      key={`${sit.id}-${idx}`}
                       onClick={() => {
                         // Feedback visual imediato
                         setSelectedSituation(sit);
@@ -1276,10 +753,7 @@ function MainApp() {
 
               <div className="pt-8 pb-4">
                 <button
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    setCurrentScreen('home');
-                  }}
+                  onClick={voltarAoInicio}
                   className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   <Home className="w-4 h-4" />
@@ -1346,7 +820,7 @@ function MainApp() {
                   </h3>
                   <div className="space-y-3">
                     {selectedSituation.steps?.map((step, idx) => (
-                      <div key={idx} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
+                      <div key={`step-${selectedSituation.id}-${idx}`} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
                         <span className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                           {idx + 1}
                         </span>
@@ -1363,7 +837,7 @@ function MainApp() {
                   </h3>
                   <div className="space-y-3">
                     {selectedSituation.toAvoid?.map((item, idx) => (
-                      <div key={idx} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
+                      <div key={`avoid-${selectedSituation.id}-${idx}`} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
                         <div className="w-2 h-2 bg-rose-300 rounded-full shrink-0 mt-2" />
                         <p className="text-slate-700 leading-snug font-semibold">{item}</p>
                       </div>
@@ -1380,39 +854,66 @@ function MainApp() {
                   </div>
                 )}
 
-                <div className="pt-8 border-t border-slate-100">
-                  <p className="text-slate-500 text-sm font-bold text-center mb-6">Isso ajudou?</p>
-                  <div className="flex gap-4 justify-center">
-                    <button 
-                      onClick={() => alert('Obrigado pelo feedback!')}
-                      className="px-10 py-3 bg-slate-50 text-slate-600 rounded-full font-bold text-sm hover:bg-emerald-100 hover:text-emerald-700 transition-all active:scale-95"
+                {/* INTEGRATED TIMER CARD - ONLY IN CRISIS FLOW */}
+                {crisisOrigin === 'crisis' && isTimerRunning && (
+                  <div className="bg-white p-6 rounded-3xl border-2 border-orange-100 shadow-xl shadow-orange-50/50 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-3 h-3 rounded-full bg-orange-500 animate-pulse`} />
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Tempo da Crise</p>
+                        <p className="text-2xl font-mono font-bold text-slate-700 leading-none">
+                          {formatTime(elapsedTime)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={finalizarCrise}
+                      className="px-6 py-3 bg-orange-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 active:scale-95 transition-all flex items-center gap-2"
                     >
-                      Sim
-                    </button>
-                    <button 
-                      onClick={() => alert('Obrigado pelo feedback! Vamos melhorar.')}
-                      className="px-10 py-3 bg-slate-50 text-slate-600 rounded-full font-bold text-sm hover:bg-rose-100 hover:text-rose-700 transition-all active:scale-95"
-                    >
-                      Não
+                      <CheckCircle2 className="w-5 h-5" />
+                      Finalizar
                     </button>
                   </div>
-                </div>
+                )}
 
-                <div className="pt-6">
-                  <button 
-                    onClick={goBack}
-                    className={`w-full py-5 rounded-2xl font-bold text-lg text-white shadow-lg transition-all active:scale-[0.98] ${selectedCategory ? APP_DATA[selectedCategory].actionBtnBgClass : 'bg-slate-800'}`}
-                  >
-                    Marcar como resolvido
-                  </button>
+                <div className="pt-8 border-t border-slate-100">
+                  <p className="text-slate-500 text-sm font-bold text-center mb-6">Isso ajudou?</p>
+                  
+                  {feedbackAjudou === null ? (
+                    <div className="flex gap-4 justify-center">
+                      <button 
+                        onClick={() => setFeedbackAjudou(true)}
+                        className="px-10 py-3 bg-slate-50 text-slate-600 rounded-full font-bold text-sm hover:bg-emerald-100 hover:text-emerald-700 transition-all active:scale-95 border border-transparent hover:border-emerald-200"
+                      >
+                        Sim
+                      </button>
+                      <button 
+                        onClick={() => setFeedbackAjudou(false)}
+                        className="px-10 py-3 bg-slate-50 text-slate-600 rounded-full font-bold text-sm hover:bg-rose-100 hover:text-rose-700 transition-all active:scale-95 border border-transparent hover:border-rose-200"
+                      >
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`text-center p-4 rounded-2xl font-bold text-sm ${
+                        feedbackAjudou 
+                        ? 'bg-emerald-50 text-emerald-700' 
+                        : 'bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      {feedbackAjudou 
+                        ? "Que bom que ajudou 💙" 
+                        : "Obrigado pelo feedback, vamos melhorar 🙏"}
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="pt-8 pb-4">
                   <button
-                    onClick={() => {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                      setCurrentScreen('home');
-                    }}
+                    onClick={voltarAoInicio}
                     className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                   >
                     <Home className="w-4 h-4" />
@@ -1473,7 +974,7 @@ function MainApp() {
                       "Evite toque físico se houver resistência",
                       "Dê tempo para a autorregulação"
                     ].map((step, i) => (
-                      <div key={i} className="flex gap-4 items-start">
+                      <div key={`emergency-step-${i}`} className="flex gap-4 items-start">
                         <span className="w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                           {i + 1}
                         </span>
@@ -1497,6 +998,10 @@ function MainApp() {
                             key={item.id}
                             onClick={() => {
                               setSelectedEmergency(item);
+                              const level = CRISIS_LEVEL_MAP[item.id] || 'moderado';
+                              setCrisisLevel(level);
+                              setInitialCrisisLevel(level);
+                              setHospitalClicked(false);
                               setTimeout(() => {
                                 setCurrentScreen('emergencyDetail');
                               }, 200);
@@ -1519,35 +1024,73 @@ function MainApp() {
                     </div>
                   </div>
 
+                  {/* 2.5 BOTÃO DE ESCALADA E HOSPITAL */}
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <button 
+                        onClick={() => setCrisisLevel('grave')}
+                        className="text-[10px] font-bold text-slate-400 hover:text-orange-400 transition-colors uppercase tracking-widest"
+                      >
+                        A situação está piorando?
+                      </button>
+                    </div>
+
+                    {crisisLevel !== 'leve' && (
+                      <div className="pt-2">
+                        <p className={`text-[11px] font-medium mb-2 ${crisisLevel === 'grave' ? 'text-rose-500 font-bold' : 'text-slate-500'}`}>
+                          {crisisLevel === 'grave' ? 'Procure ajuda imediata:' : 'Se precisar de ajuda externa:'}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setHospitalClicked(true);
+                            window.open('https://www.google.com/maps/search/?api=1&query=hospital+near+me', '_blank');
+                          }}
+                          className={`w-full p-4 rounded-[14px] text-left transition-all active:scale-[0.98] hover:scale-[1.01] flex items-center gap-3 shadow-sm group border ${
+                            crisisLevel === 'grave' 
+                            ? 'bg-rose-50 border-rose-200 shadow-rose-50' 
+                            : 'bg-[#FFF7ED] border-orange-200 shadow-orange-50'
+                          }`}
+                        >
+                          <div className={`w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0 ${
+                            crisisLevel === 'grave' ? 'text-rose-500' : 'text-orange-500'
+                          }`}>
+                            <span className="text-2xl">{crisisLevel === 'grave' ? '🚑' : '🏥'}</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className={`font-bold text-sm leading-tight ${crisisLevel === 'grave' ? 'text-rose-900' : 'text-[#9A3412]'}`}>
+                              Ir para hospital próximo
+                            </p>
+                            <p className={`text-[10px] font-medium mt-0.5 ${crisisLevel === 'grave' ? 'text-rose-600/60' : 'text-orange-700/60'}`}>
+                              Abrir rota imediata no mapa
+                            </p>
+                          </div>
+                          <ChevronRight className={`w-4 h-4 ${crisisLevel === 'grave' ? 'text-rose-300' : 'text-orange-300'}`} />
+                        </button>
+                        {/* 
+                          FUTURO: 
+                          - O nível de crise poderá ser definido por IA
+                          - Pode considerar histórico da criança e sinais vitais
+                        */}
+                      </div>
+                    )}
+                  </div>
+
                   {/* 4. TIMER (POR ÚLTIMO) */}
-                  <div className="bg-slate-100/50 p-4 rounded-2xl border border-slate-200 text-center">
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mb-1">
-                      Crise em andamento
+                  <div className="bg-slate-100/50 p-6 rounded-3xl border border-slate-200 text-center shadow-inner">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">
+                      Tempo de Crise
                     </p>
-                    <div className="text-3xl font-mono font-bold text-slate-700 mb-4">
-                      {formatTime(isTimerRunning || elapsedTime > 0 ? elapsedTime : (lastCrisisDuration || 0))}
+                    <div className="text-4xl font-mono font-bold text-slate-700 mb-6 tracking-tighter">
+                      {formatTime(elapsedTime)}
                     </div>
                     
-                    <div className="flex gap-2">
-                      <button
-                        onClick={isTimerRunning ? pauseTimer : resumeTimer}
-                        className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border ${
-                          isTimerRunning 
-                          ? 'bg-white border-slate-200 text-slate-600' 
-                          : 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                        }`}
-                      >
-                        {isTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                        {isTimerRunning ? 'Pausar' : 'Retomar'}
-                      </button>
-                      <button
-                        onClick={endCrisis}
-                        className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
-                      >
-                        <CheckCircle2 className="w-3 h-3" />
-                        Encerrar crise
-                      </button>
-                    </div>
+                    <button
+                      onClick={finalizarCrise}
+                      className="w-full py-4 bg-orange-600 text-white rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 shadow-lg shadow-orange-100 active:scale-95"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      Finalizar crise
+                    </button>
                   </div>
                 </>
               ) : (
@@ -1565,6 +1108,9 @@ function MainApp() {
                     <p className="text-emerald-700 font-medium leading-relaxed">
                       Você lidou com isso da melhor forma possível.
                     </p>
+                    <p className="text-emerald-600/80 text-xs font-bold uppercase tracking-widest mt-4">
+                      Agora vamos registrar rapidamente o que aconteceu.
+                    </p>
                   </div>
 
                   {lastCrisisDuration !== null && (
@@ -1574,45 +1120,54 @@ function MainApp() {
                         <p className="text-4xl font-bold text-slate-700">{formatTime(lastCrisisDuration)}</p>
                       </div>
                       <div className="space-y-3">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Salvar no diário como:</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {EMERGENCY_DATA.map(item => (
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Como você classifica esta crise?</p>
+                        <div className="space-y-2">
+                          {CRISIS_CLASSIFICATION_OPTIONS.map(tipo => (
                             <button
-                              key={item.id}
-                              onClick={() => saveLog(item.title)}
-                              className="p-3 text-[10px] font-bold bg-slate-50 text-slate-600 rounded-xl border border-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-100 transition-all"
+                              key={tipo}
+                              onClick={() => setFinalCrisisType(tipo)}
+                              className={`w-full p-4 border rounded-xl text-left transition-all group ${
+                                finalCrisisType === tipo 
+                                ? 'bg-orange-600 border-orange-600' 
+                                : 'bg-slate-50 border-slate-100 hover:bg-orange-50 hover:border-orange-200'
+                              }`}
                             >
-                              {item.title}
+                              <div className="flex items-center justify-between">
+                                <span className={`font-bold ${finalCrisisType === tipo ? 'text-white' : 'text-slate-700 group-hover:text-orange-700'}`}>
+                                  {tipo}
+                                </span>
+                                <ChevronRight className={`w-4 h-4 ${finalCrisisType === tipo ? 'text-orange-200' : 'text-slate-300 group-hover:text-orange-400'}`} />
+                              </div>
                             </button>
                           ))}
-                          <button
-                            onClick={() => saveLog()}
-                            className="p-3 text-[10px] font-bold bg-slate-50 text-slate-400 rounded-xl border border-slate-100 hover:bg-slate-100 transition-all col-span-2"
-                          >
-                            Outro / Não especificado
-                          </button>
                         </div>
                       </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center mt-4">Observação opcional</p>
+                        <textarea
+                          placeholder="Escreva algo importante sobre o que aconteceu"
+                          value={crisisObservation}
+                          onChange={(e) => setCrisisObservation(e.target.value)}
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 min-h-[100px] resize-none"
+                        />
+                      </div>
+
+                      <button
+                        onClick={concluirRegistroEVoltar}
+                        className="w-full py-5 bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-orange-100 active:scale-[0.98] transition-all"
+                      >
+                        Salvar e voltar ao início
+                      </button>
                     </div>
                   )}
-
-                  <button
-                    onClick={() => setCurrentScreen('home')}
-                    className="w-full py-5 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold text-base shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                  >
-                    <LayoutDashboard className="w-5 h-5" />
-                    Voltar para início
-                  </button>
                 </motion.div>
               )}
 
               {!hasEndedCrisis && (
                 <div className="pt-8 pb-4">
                   <button
-                    onClick={() => {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                      setCurrentScreen('home');
-                    }}
+                    onClick={voltarAoInicio}
                     className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                   >
                     <Home className="w-4 h-4" />
@@ -1633,52 +1188,155 @@ function MainApp() {
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
         >
-          <Layout title="Diário de Crises" onBack={goBack}>
-            <div className="space-y-6">
-              {logs.length > 0 ? (
-                <div className="space-y-4">
-                  {logs.map((log) => (
-                    <div key={log.id} className="bg-white p-5 rounded-2xl border border-slate-50 shadow-sm flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{log.date}</p>
-                        <h4 className="font-bold text-slate-700">{log.type}</h4>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Duração</p>
-                        <p className="text-lg font-bold text-orange-500">{formatTime(log.duration)}</p>
-                      </div>
-                    </div>
-                  ))}
-                  <button 
-                    onClick={() => {
-                      if(confirm('Deseja limpar todo o histórico?')) setLogs([]);
-                    }}
-                    className="w-full py-6 text-slate-300 text-[10px] font-bold uppercase tracking-[0.2em] hover:text-rose-400 transition-colors"
-                  >
-                    Limpar histórico
-                  </button>
+          <Layout title="Histórico de crises" onBack={goBack}>
+            <div className="space-y-6 relative pb-10">
+              <div className="px-1">
+                <p className="text-slate-500 font-medium text-sm leading-relaxed">
+                  Acompanhe os eventos registrados e observe padrões ao longo do tempo.
+                </p>
+              </div>
+
+              {/* SUMMARY CARDS */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 leading-tight">Total</p>
+                  <p className="text-xl font-bold text-slate-700">{crisisHistory.length}</p>
+                  <p className="text-[8px] text-slate-300 font-bold uppercase mt-1">Crises</p>
                 </div>
-              ) : (
-                <div className="text-center py-24 space-y-4">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
-                    <Clock className="w-6 h-6 text-slate-200" />
-                  </div>
-                  <p className="text-slate-400 font-medium text-sm">Nenhuma crise registrada.</p>
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 leading-tight">Média</p>
+                  <p className="text-xl font-bold text-orange-500">
+                    {crisisHistory.length > 0 
+                      ? `${Math.round(crisisHistory.reduce((acc, curr) => acc + curr.tempoTotal, 0) / crisisHistory.length / 60)}`
+                      : '0'
+                    }
+                  </p>
+                  <p className="text-[8px] text-slate-300 font-bold uppercase mt-1">Minutos</p>
                 </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 leading-tight">Última</p>
+                  <p className="text-[11px] font-bold text-slate-700 mt-1">
+                    {crisisHistory.length > 0 
+                      ? new Date(crisisHistory[crisisHistory.length - 1].data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      : '-'
+                    }
+                  </p>
+                  <p className="text-[8px] text-slate-300 font-bold uppercase mt-1">Data</p>
+                </div>
+              </div>
+
+              {!isPro && (
+                <LockedOverlay 
+                  onUnlock={() => setCurrentScreen('plans')} 
+                  message="Histórico completo disponível no PLUS"
+                />
               )}
 
-              <div className="pt-8 pb-4">
-                <button
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    setCurrentScreen('home');
-                  }}
-                  className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                  <Home className="w-4 h-4" />
-                  Voltar ao início
-                </button>
+              <div className={!isPro ? 'opacity-20 pointer-events-none blur-[4px]' : ''}>
+                {crisisHistory.length > 0 ? (
+                  <div className="space-y-4">
+                    {[...crisisHistory].reverse().map((event) => (
+                      <div key={event.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden border-l-4 border-l-orange-400">
+                        <div className="p-5 space-y-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                                {new Date(event.data).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })} às {new Date(event.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              <h4 className="font-bold text-slate-800 text-base leading-tight">{event.tipo}</h4>
+                            </div>
+                            <div className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${
+                              event.nivelFinal === 'leve' ? 'bg-emerald-50 text-emerald-600' :
+                              event.nivelFinal === 'moderado' ? 'bg-amber-50 text-amber-600' :
+                              'bg-rose-50 text-rose-600'
+                            }`}>
+                              Nível {event.nivelFinal}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-6 py-3 border-y border-slate-50">
+                            <div>
+                              <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-0.5">Duração</p>
+                              <p className="text-sm font-mono font-bold text-slate-600">{formatTime(event.tempoTotal)}</p>
+                            </div>
+                            {event.feedbackAjudou !== undefined && (
+                              <div>
+                                <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-0.5">Resultado</p>
+                                <p className={`text-sm font-bold flex items-center gap-1 ${event.feedbackAjudou ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  {event.feedbackAjudou ? (
+                                    <>
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      Estratégia ajudou
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      Estratégia não ajudou
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {event.observacao && (
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observação</p>
+                              <p className="text-xs text-slate-600 italic font-medium">"{event.observacao}"</p>
+                            </div>
+                          )}
+
+                          {event.acionouHospital && (
+                            <div className="flex items-center gap-2 text-rose-600 bg-rose-50/50 px-3 py-2 rounded-xl text-xs font-bold border border-rose-100">
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                              Ajuda externa acionada
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <button 
+                      onClick={clearHistory}
+                      className="w-full py-8 text-slate-300 text-[10px] font-bold uppercase tracking-[0.2em] hover:text-rose-400 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Limpar histórico
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-20 px-8 space-y-6">
+                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto opacity-50">
+                      <Clock className="w-8 h-8 text-slate-300" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-slate-600 font-bold text-lg">Nenhuma crise registrada ainda</p>
+                      <p className="text-slate-400 font-medium text-sm leading-relaxed">
+                        Quando uma crise for finalizada, ela aparecerá aqui.
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={voltarAoInicio}
+                      className="px-8 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition-all"
+                    >
+                      Voltar ao início
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {crisisHistory.length > 0 && (
+                <div className="pt-4 pb-4">
+                  <button
+                    onClick={voltarAoInicio}
+                    className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Home className="w-4 h-4" />
+                    Voltar ao início
+                  </button>
+                </div>
+              )}
             </div>
           </Layout>
         </motion.div>
@@ -1720,7 +1378,7 @@ function MainApp() {
                 </h3>
                 <div className="space-y-3">
                   {selectedEmergency.steps.map((step, idx) => (
-                    <div key={idx} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
+                    <div key={`emergency-dt-step-${selectedEmergency.id}-${idx}`} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
                       <span className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                         {idx + 1}
                       </span>
@@ -1737,7 +1395,7 @@ function MainApp() {
                 </h3>
                 <div className="space-y-3">
                   {selectedEmergency.toAvoid.map((item, idx) => (
-                    <div key={idx} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
+                    <div key={`emergency-dt-avoid-${selectedEmergency.id}-${idx}`} className="flex gap-4 p-5 bg-white rounded-2xl border border-slate-50 shadow-sm items-start">
                       <div className="w-2 h-2 bg-rose-300 rounded-full shrink-0 mt-2" />
                       <p className="text-slate-700 font-semibold leading-snug">{item}</p>
                     </div>
@@ -1754,55 +1412,115 @@ function MainApp() {
                 </div>
               )}
 
-              <div className="pt-6">
-                <button
-                  onClick={() => setCurrentScreen('emergency')}
-                  className="w-full py-5 bg-orange-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-orange-100 active:scale-[0.98] transition-all"
-                >
-                  Marcar como resolvido
-                </button>
-              </div>
-
-              {/* Timer for Detail View - Moved to bottom and made less prominent */}
-              {(isTimerRunning || elapsedTime > 0) && (
-                <div className="bg-slate-100/50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between mt-8">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${isTimerRunning ? 'bg-orange-500 animate-pulse' : 'bg-slate-300'}`} />
+              {/* INTEGRATED TIMER CARD - ONLY IN CRISIS FLOW */}
+              {crisisOrigin === 'crisis' && isTimerRunning && (
+                <div className="bg-white p-6 rounded-3xl border-2 border-orange-100 shadow-xl shadow-orange-50/50 flex items-center justify-between mt-8">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-3 h-3 rounded-full bg-orange-500 animate-pulse`} />
                     <div>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
-                        {isTimerRunning ? 'Crise em andamento' : 'Timer pausado'}
-                      </p>
-                      <p className="text-xl font-mono font-bold text-slate-700 leading-none">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Tempo da Crise</p>
+                      <p className="text-2xl font-mono font-bold text-slate-700 leading-none">
                         {formatTime(elapsedTime)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={isTimerRunning ? pauseTimer : resumeTimer}
-                      className="p-2 bg-white text-slate-600 rounded-lg border border-slate-200"
-                    >
-                      {isTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </button>
-                    <button
-                      onClick={() => {
-                        endCrisis();
-                        setCurrentScreen('emergency');
-                      }}
-                      className="p-2 bg-orange-500 text-white rounded-lg shadow-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={finalizarCrise}
+                    className="px-6 py-3 bg-orange-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    Finalizar
+                  </button>
                 </div>
               )}
 
+              <div className="pt-8 border-t border-slate-100 mb-6">
+                <p className="text-slate-500 text-sm font-bold text-center mb-6">Isso ajudou?</p>
+                
+                {feedbackAjudou === null ? (
+                  <div className="flex gap-4 justify-center">
+                    <button 
+                      onClick={() => setFeedbackAjudou(true)}
+                      className="px-10 py-3 bg-white text-slate-600 rounded-full font-bold text-sm hover:bg-emerald-100 hover:text-emerald-700 transition-all active:scale-95 border border-slate-100 hover:border-emerald-200"
+                    >
+                      Sim
+                    </button>
+                    <button 
+                      onClick={() => setFeedbackAjudou(false)}
+                      className="px-10 py-3 bg-white text-slate-600 rounded-full font-bold text-sm hover:bg-rose-100 hover:text-rose-700 transition-all active:scale-95 border border-slate-100 hover:border-rose-200"
+                    >
+                      Não
+                    </button>
+                  </div>
+                ) : (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`text-center p-4 rounded-2xl font-bold text-sm ${
+                      feedbackAjudou 
+                      ? 'bg-emerald-50 text-emerald-700' 
+                      : 'bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    {feedbackAjudou 
+                      ? "Que bom que ajudou 💙" 
+                      : "Obrigado pelo feedback, vamos melhorar 🙏"}
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="space-y-4 mt-8 pt-6 border-t border-slate-100">
+                <div className="text-center">
+                  <button 
+                    onClick={() => setCrisisLevel('grave')}
+                    className="text-[10px] font-bold text-slate-400 hover:text-orange-400 transition-colors uppercase tracking-widest"
+                  >
+                    A situação está piorando?
+                  </button>
+                </div>
+
+                {crisisLevel !== 'leve' && (
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                      {crisisLevel === 'grave' ? <Zap className="w-5 h-5 text-rose-500" /> : <Info className="w-5 h-5 text-orange-400" />}
+                      Ajuda externa
+                    </h3>
+                    <p className={`text-[11px] font-medium mb-3 ${crisisLevel === 'grave' ? 'text-rose-500 font-bold' : 'text-slate-500'}`}>
+                      {crisisLevel === 'grave' ? 'Procure ajuda imediata:' : 'Se precisar de ajuda externa:'}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setHospitalClicked(true);
+                        window.open('https://www.google.com/maps/search/?api=1&query=hospital+near+me', '_blank');
+                      }}
+                      className={`w-full p-4 rounded-[14px] text-left transition-all active:scale-[0.98] hover:scale-[1.01] flex items-center gap-3 shadow-sm group border ${
+                        crisisLevel === 'grave' 
+                        ? 'bg-rose-50 border-rose-200 shadow-rose-50' 
+                        : 'bg-[#FFF7ED] border-orange-200 shadow-orange-50'
+                      }`}
+                    >
+                      <div className={`w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0 ${
+                        crisisLevel === 'grave' ? 'text-rose-500' : 'text-orange-500'
+                      }`}>
+                        <span className="text-2xl">{crisisLevel === 'grave' ? '🚑' : '🏥'}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className={`font-bold text-sm leading-tight ${crisisLevel === 'grave' ? 'text-rose-900' : 'text-[#9A3412]'}`}>
+                          Ir para hospital próximo
+                        </p>
+                        <p className={`text-[10px] font-medium mt-0.5 ${crisisLevel === 'grave' ? 'text-rose-600/60' : 'text-orange-700/60'}`}>
+                          Abrir rota imediata no mapa
+                        </p>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${crisisLevel === 'grave' ? 'text-rose-300' : 'text-orange-300'}`} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="pt-8 pb-4">
                 <button
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    setCurrentScreen('home');
-                  }}
+                  onClick={voltarAoInicio}
                   className="w-full py-4 bg-white border border-slate-200 text-slate-500 rounded-2xl font-bold text-sm shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   <Home className="w-4 h-4" />
@@ -1814,19 +1532,41 @@ function MainApp() {
         </motion.div>
       )}
 
-      {/* Floating Home Button */}
-      {currentScreen !== 'home' && currentScreen !== 'auth' && (
+      </AnimatePresence>
+
+      {/* Assistant Component - Moved outside AnimatePresence to avoid conflicts with mode="wait" */}
+      <Assistant 
+        isOpen={isAssistantOpen} 
+        userPlan={userPlan} 
+        onClose={() => setIsAssistantOpen(false)}
+        onUpgrade={() => {
+          setIsAssistantOpen(false);
+          setCurrentScreen('plans');
+        }}
+      />
+
+      {/* Floating Assistant Button - Moved outside AnimatePresence to avoid conflicts with mode="wait" */}
+      {currentScreen !== 'home' && currentScreen !== 'auth' && currentScreen !== 'plans' && currentScreen !== 'checkout' && currentScreen !== 'success' && (
         <button
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            setCurrentScreen('home');
-          }}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center z-[1000] active:scale-95 transition-all"
-          aria-label="Voltar ao início"
+          onClick={() => setIsAssistantOpen(true)}
+          className="fixed bottom-6 right-6 px-4 h-14 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center gap-2 z-[1000] active:scale-95 transition-all group overflow-hidden"
+          aria-label="Ajuda rápida"
         >
-          <Home className="w-6 h-6" />
+          <motion.div
+            animate={{ 
+              rotate: [0, 10, -10, 10, 0],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              repeatDelay: 3
+            }}
+          >
+            <MessageCircle className="w-6 h-6" />
+          </motion.div>
+          <span className="font-bold text-sm pr-1">Ajuda</span>
         </button>
       )}
-    </AnimatePresence>
+    </div>
   );
 }
